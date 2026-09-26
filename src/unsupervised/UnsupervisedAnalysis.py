@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from IPython.display import display
+from dataframe_desarrollado import DataFrame
 from scipy.cluster.hierarchy import cophenet, dendrogram, linkage as scipy_linkage
 from scipy.spatial.distance import pdist
 from sklearn.cluster import AgglomerativeClustering, KMeans
@@ -16,11 +17,8 @@ except ImportError:
     umap = None
 
 
-class UnsupervisedAnalysis:
-    """Implementa reducción de dimensionalidad y clustering."""
-
-    def __init__(self, dataframe):
-        self.dataframe = dataframe
+class UnsupervisedAnalysis(DataFrame):
+    """Extiende DataFrame con reducción de dimensionalidad y clustering."""
 
     def preparar_datos_numericos(self, columnas=None):
         datos = self.dataframe if columnas is None else self.dataframe[columnas]

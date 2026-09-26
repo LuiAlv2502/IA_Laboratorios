@@ -1,11 +1,11 @@
 import pandas as pd
-from dataframe_desarrollado import DataFrame
+from unsupervised import UnsupervisedAnalysis
 
 
 class DataModel:
     """
     MODEL
-    Encapsula el objeto de la clase DataFrame y expone
+    Encapsula el objeto de la clase UnsupervisedAnalysis y expone
     operaciones que serán utilizadas por el Controller.
     No depende de ningún archivo en particular: se puede
     construir vacío y cargar cualquier CSV en tiempo de ejecución.
@@ -13,7 +13,7 @@ class DataModel:
 
     def __init__(self, ruta_csv=None):
         self.__datos_originales = pd.DataFrame()
-        self.__dataframe = DataFrame(self.__datos_originales.copy())
+        self.__dataframe = UnsupervisedAnalysis(self.__datos_originales.copy())
 
         if ruta_csv:
             self.cargar_archivo(ruta_csv)
@@ -24,11 +24,15 @@ class DataModel:
 
     def cargar_archivo(self, ruta_csv):
         self.__datos_originales = pd.read_csv(ruta_csv)
-        self.__dataframe = DataFrame(self.__datos_originales.copy())
+        self.__dataframe = UnsupervisedAnalysis(
+            self.__datos_originales.copy()
+        )
         return self.__dataframe
 
     def restaurar(self):
-        self.__dataframe = DataFrame(self.__datos_originales.copy())
+        self.__dataframe = UnsupervisedAnalysis(
+            self.__datos_originales.copy()
+        )
         return self.__dataframe
 
     def informacion(self):
