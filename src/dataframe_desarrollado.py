@@ -2,6 +2,18 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from unsupervised import UnsupervisedAnalysis
+from scipy.cluster.hierarchy import dendrogram, linkage as scipy_linkage
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+
+try:
+    import umap
+except ImportError:
+    umap = None
 
 
 class DataFrame:
@@ -18,6 +30,7 @@ class DataFrame:
             raise TypeError("El atributo dataframe debe ser un pandas.DataFrame.")
 
         self.__dataframe = dataframe.copy()
+        self.__unsupervised = UnsupervisedAnalysis(self.__dataframe)
 
     # ==========================================================
     # Propiedad
@@ -33,6 +46,7 @@ class DataFrame:
             raise TypeError("El nuevo valor debe ser un pandas.DataFrame.")
 
         self.__dataframe = nuevo_dataframe.copy()
+        self.__unsupervised = UnsupervisedAnalysis(self.__dataframe)
 
     # ==========================================================
     # toString
@@ -499,6 +513,270 @@ class DataFrame:
         """Exporta el DataFrame resultante del EDA."""
         self.__dataframe.to_csv(ruta, index=False)
         return ruta
+
+    # ==========================================================
+    # MÉTODOS NO SUPERVISADOS: PCA, HAC, K-MEANS, T-SNE, UMAP
+    # Funcionan sobre cualquier dataset cargado (no solo drug200).
+    # ==========================================================
+
+    def preparar_datos_numericos(self, columnas=None):
+        """
+        Selecciona columnas, codifica categóricas (one-hot) y
+        estandariza el resultado. Retorna (matriz, nombres_columnas).
+        """
+        datos = self.__dataframe
+
+        if columnas is not None:
+            datos = datos[columnas]
+
+        if datos.empty:
+            raise ValueError("No hay datos para procesar.")
+
+        datos_codificados = pd.get_dummies(datos, drop_first=True)
+
+        if datos_codificados.empty:
+            raise ValueError("No existen columnas utilizables.")
+
+        matriz = StandardScaler().fit_transform(
+            datos_codificados.to_numpy(dtype=float)
+        )
+
+        return matriz, list(datos_codificados.columns)
+
+    def pca(self, n_components=2, whiten=False, svd_solver="auto", columnas=None):
+        """
+        Análisis de Componentes Principales (PCA/ACP).
+        Retorna componentes, varianza explicada y varianza acumulada.
+        """
+        matriz, _ = self.preparar_datos_numericos(columnas)
+
+        modelo = PCA(
+            n_components=n_components,
+            whiten=whiten,
+            svd_solver=svd_solver,
+            random_state=42
+        )
+        componentes = modelo.fit_transform(matriz)
+
+        nombres = [f"PC{i + 1}" for i in range(componentes.shape[1])]
+        df_componentes = pd.DataFrame(componentes, columns=nombres)
+
+        return {
+            "componentes": df_componentes,
+            "varianza_explicada": modelo.explained_variance_ratio_,
+            "varianza_acumulada": np.cumsum(
+                modelo.explained_variance_ratio_
+            ),
+        }
+
+    def pca_grafico(self, resultado_pca):
+        """Genera un scatterplot de las dos primeras componentes del PCA."""
+        componentes = resultado_pca["componentes"]
+
+        if componentes.shape[1] < 2:
+            raise ValueError("Se requieren al menos dos componentes.")
+
+        figura, eje = plt.subplots(figsize=(8, 6))
+        eje.scatter(componentes["PC1"], componentes["PC2"])
+        eje.set_xlabel(
+            f"PC1 ({resultado_pca['varianza_explicada'][0]:.1%})"
+        )
+        eje.set_ylabel(
+            f"PC2 ({resultado_pca['varianza_explicada'][1]:.1%})"
+        )
+        eje.set_title("PCA - Componentes principales")
+        plt.tight_layout()
+        plt.show()
+
+        return eje
+
+    def hac(self, n_clusters=3, linkage="ward", metric="euclidean", columnas=None):
+        """
+        Agrupamiento Jerárquico Aglomerativo (HAC).
+        Retorna el DataFrame original con la columna 'cluster' y el silhouette.
+        """
+        matriz, _ = self.preparar_datos_numericos(columnas)
+
+        modelo = AgglomerativeClustering(
+            n_clusters=n_clusters,
+            linkage=linkage,
+            metric=metric if linkage != "ward" else "euclidean"
+        )
+        etiquetas = modelo.fit_predict(matriz)
+
+        resultado = self.__dataframe.copy()
+        resultado["cluster"] = etiquetas
+
+        return {
+            "resultado": resultado,
+            "silhouette": silhouette_score(matriz, etiquetas)
+            if n_clusters > 1 else None,
+        }
+
+    def hac_dendrograma(self, metodo="ward", columnas=None):
+        """Genera el dendrograma del agrupamiento jerárquico."""
+        matriz, _ = self.preparar_datos_numericos(columnas)
+        enlaces = scipy_linkage(matriz, method=metodo)
+
+        figura, eje = plt.subplots(figsize=(12, 6))
+        dendrogram(enlaces, ax=eje)
+        eje.set_title(f"Dendrograma HAC (método={metodo})")
+        eje.set_xlabel("Índice de muestra")
+        eje.set_ylabel("Distancia")
+        plt.tight_layout()
+        plt.show()
+
+        return eje
+
+    def kmeans(self, n_clusters=3, init="k-means++", n_init=10, columnas=None):
+        """
+        Agrupamiento por centroides (K-Means).
+        Retorna el DataFrame con la columna 'cluster', inercia y silhouette.
+        """
+        matriz, _ = self.preparar_datos_numericos(columnas)
+
+        modelo = KMeans(
+            n_clusters=n_clusters,
+            init=init,
+            n_init=n_init,
+            random_state=42
+        )
+        etiquetas = modelo.fit_predict(matriz)
+
+        resultado = self.__dataframe.copy()
+        resultado["cluster"] = etiquetas
+
+        return {
+            "resultado": resultado,
+            "inercia": modelo.inertia_,
+            "silhouette": silhouette_score(matriz, etiquetas)
+            if n_clusters > 1 else None,
+        }
+
+    def kmeans_codo(self, k_max=10, columnas=None):
+        """Genera la curva del método del codo para elegir k."""
+        if k_max < 2:
+            raise ValueError("k_max debe ser mayor o igual que 2.")
+
+        matriz, _ = self.preparar_datos_numericos(columnas)
+        inercias = []
+
+        for k in range(1, k_max + 1):
+            modelo = KMeans(n_clusters=k, n_init=10, random_state=42)
+            modelo.fit(matriz)
+            inercias.append(modelo.inertia_)
+
+        figura, eje = plt.subplots(figsize=(8, 6))
+        eje.plot(range(1, k_max + 1), inercias, marker="o")
+        eje.set_xlabel("Número de clústeres (k)")
+        eje.set_ylabel("Inercia")
+        eje.set_title("Método del codo")
+        plt.tight_layout()
+        plt.show()
+
+        return pd.Series(inercias, index=range(1, k_max + 1), name="inercia")
+
+    def tsne(self, n_components=2, perplexity=30.0, learning_rate="auto", columnas=None):
+        """Reducción de dimensionalidad t-SNE. Retorna el embedding."""
+        matriz, _ = self.preparar_datos_numericos(columnas)
+
+        modelo = TSNE(
+            n_components=n_components,
+            perplexity=perplexity,
+            learning_rate=learning_rate,
+            random_state=42,
+            init="pca"
+        )
+        embedding = modelo.fit_transform(matriz)
+        nombres = [f"Dim{i + 1}" for i in range(embedding.shape[1])]
+
+        return pd.DataFrame(embedding, columns=nombres)
+
+    def umap_embedding(self, n_components=2, n_neighbors=15, min_dist=0.1, columnas=None):
+        """Reducción de dimensionalidad UMAP. Retorna el embedding."""
+        if umap is None:
+            raise ImportError(
+                "El paquete 'umap-learn' no está instalado. "
+                "Instálelo con: pip install umap-learn"
+            )
+
+        matriz, _ = self.preparar_datos_numericos(columnas)
+
+        modelo = umap.UMAP(
+            n_components=n_components,
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
+            random_state=42
+        )
+        embedding = modelo.fit_transform(matriz)
+        nombres = [f"Dim{i + 1}" for i in range(embedding.shape[1])]
+
+        return pd.DataFrame(embedding, columns=nombres)
+
+    def embedding_grafico(self, embedding, titulo="Embedding"):
+        """Genera un scatterplot de un embedding de 2 dimensiones."""
+        if embedding.shape[1] < 2:
+            raise ValueError("Se requieren al menos dos dimensiones.")
+
+        columnas = list(embedding.columns)
+        figura, eje = plt.subplots(figsize=(8, 6))
+        eje.scatter(embedding[columnas[0]], embedding[columnas[1]])
+        eje.set_xlabel(columnas[0])
+        eje.set_ylabel(columnas[1])
+        eje.set_title(titulo)
+        plt.tight_layout()
+        plt.show()
+
+        return eje
+
+    # Compatibilidad: delega la API pública al módulo especializado.
+    def _analisis_no_supervisado(self):
+        return UnsupervisedAnalysis(self.__dataframe)
+
+    def preparar_datos_numericos(self, columnas=None):
+        return self._analisis_no_supervisado().preparar_datos_numericos(columnas)
+
+    def pca(self, n_components=2, whiten=False, svd_solver="auto", columnas=None):
+        return self._analisis_no_supervisado().pca(
+            n_components, whiten, svd_solver, columnas
+        )
+
+    def pca_grafico(self, resultado_pca):
+        return self._analisis_no_supervisado().pca_grafico(resultado_pca)
+
+    def hac(self, n_clusters=3, linkage="ward", metric="euclidean", columnas=None):
+        return self._analisis_no_supervisado().hac(
+            n_clusters, linkage, metric, columnas
+        )
+
+    def hac_dendrograma(self, metodo="ward", columnas=None):
+        return self._analisis_no_supervisado().hac_dendrograma(metodo, columnas)
+
+    def kmeans(self, n_clusters=3, init="k-means++", n_init=10, columnas=None):
+        return self._analisis_no_supervisado().kmeans(
+            n_clusters, init, n_init, columnas
+        )
+
+    def kmeans_codo(self, k_max=10, columnas=None):
+        return self._analisis_no_supervisado().kmeans_codo(k_max, columnas)
+
+    def cluster_grafico(self, etiquetas, titulo="Clústeres"):
+        return self._analisis_no_supervisado().cluster_grafico(
+            etiquetas, titulo
+        )
+
+    def tsne(self, n_components=2, perplexity=30.0, learning_rate="auto", columnas=None):
+        return self._analisis_no_supervisado().tsne(
+            n_components, perplexity, learning_rate, columnas
+        )
+
+    def umap_embedding(self, n_components=2, n_neighbors=15, min_dist=0.1, columnas=None):
+        return self._analisis_no_supervisado().umap_embedding(
+            n_components, n_neighbors, min_dist, columnas
+        )
+
+    def embedding_grafico(self, embedding, titulo="Embedding"):
+        return self._analisis_no_supervisado().embedding_grafico(embedding, titulo)
 
 
 if __name__ == "__main__":

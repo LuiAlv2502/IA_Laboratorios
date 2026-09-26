@@ -1,21 +1,30 @@
 import pandas as pd
-from DataFrame_desarrollado import DataFrame
+from dataframe_desarrollado import DataFrame
 
 
-class TitanicModel:
+class DataModel:
     """
     MODEL
     Encapsula el objeto de la clase DataFrame y expone
     operaciones que serán utilizadas por el Controller.
+    No depende de ningún archivo en particular: se puede
+    construir vacío y cargar cualquier CSV en tiempo de ejecución.
     """
 
-    def __init__(self, ruta_csv):
-        self.__ruta_csv = ruta_csv
-        self.__datos_originales = pd.read_csv(ruta_csv)
+    def __init__(self, ruta_csv=None):
+        self.__datos_originales = pd.DataFrame()
         self.__dataframe = DataFrame(self.__datos_originales.copy())
+
+        if ruta_csv:
+            self.cargar_archivo(ruta_csv)
 
     @property
     def dataframe(self):
+        return self.__dataframe
+
+    def cargar_archivo(self, ruta_csv):
+        self.__datos_originales = pd.read_csv(ruta_csv)
+        self.__dataframe = DataFrame(self.__datos_originales.copy())
         return self.__dataframe
 
     def restaurar(self):
@@ -39,6 +48,17 @@ class TitanicModel:
 
     def obtener_columna(self, nombre):
         return self.__dataframe.obtener_columna(nombre)
+
+    def convertir_valor(self, columna, valor):
+        serie = self.obtener_columna(columna)
+
+        if pd.api.types.is_numeric_dtype(serie):
+            try:
+                return float(valor)
+            except ValueError:
+                pass
+
+        return valor
 
     def dimensiones(self):
         return self.__dataframe.dimensiones()
@@ -126,3 +146,39 @@ class TitanicModel:
 
     def exportar_resultados(self, ruta="resultados_eda.csv"):
         return self.__dataframe.exportar_resultados(ruta)
+
+    # ==========================================================
+    # MÉTODOS NO SUPERVISADOS
+    # ==========================================================
+
+    def pca(self, n_components=2, whiten=False, svd_solver="auto"):
+        return self.__dataframe.pca(n_components, whiten, svd_solver)
+
+    def pca_grafico(self, resultado_pca):
+        return self.__dataframe.pca_grafico(resultado_pca)
+
+    def hac(self, n_clusters=3, linkage="ward", metric="euclidean"):
+        return self.__dataframe.hac(n_clusters, linkage, metric)
+
+    def hac_dendrograma(self, metodo="ward"):
+        return self.__dataframe.hac_dendrograma(metodo)
+
+    def kmeans(self, n_clusters=3, init="k-means++", n_init=10):
+        return self.__dataframe.kmeans(n_clusters, init, n_init)
+
+    def kmeans_codo(self, k_max=10):
+        return self.__dataframe.kmeans_codo(k_max)
+
+    def cluster_grafico(self, etiquetas, titulo="Clústeres"):
+        return self.__dataframe.cluster_grafico(etiquetas, titulo)
+
+    def tsne(self, n_components=2, perplexity=30.0, learning_rate="auto"):
+        return self.__dataframe.tsne(n_components, perplexity, learning_rate)
+
+    def umap_embedding(self, n_components=2, n_neighbors=15, min_dist=0.1):
+        return self.__dataframe.umap_embedding(
+            n_components, n_neighbors, min_dist
+        )
+
+    def embedding_grafico(self, embedding, titulo="Embedding"):
+        return self.__dataframe.embedding_grafico(embedding, titulo)
