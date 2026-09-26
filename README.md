@@ -91,6 +91,20 @@ Antes de estos métodos, la aplicación codifica variables categóricas mediante
 
 Para HAC y K-Means se reporta el **silhouette score**, donde valores cercanos a $1$ sugieren grupos más separados. K-Means además reporta la **inercia**, suma de distancias cuadradas de cada observación a su centroide.
 
+### Métricas impresas en consola
+
+Cada vez que se ejecuta una técnica, el programa imprime su métrica principal. Esto permite revisar el resultado sin leer el código.
+
+| Técnica | Mensaje en consola | Interpretación simple |
+| --- | --- | --- |
+| PCA | `PCA - Varianza explicada acumulada: X%` | Indica cuánta información de los datos conservan las componentes calculadas. Un porcentaje más alto es mejor; como referencia, superar $70\%$ suele ser una representación razonable. |
+| HAC | `HAC - Correlación cofenética: X` | Mide qué tan bien el dendrograma conserva las distancias originales entre observaciones. Va aproximadamente de $0$ a $1$; valores cercanos a $1$ son mejores. |
+| K-Means | `K-Means - Silhouette score: X` | Mide si los grupos están compactos y separados. Va de $-1$ a $1$; cercano a $1$ es bueno, cercano a $0$ indica grupos mezclados y negativo es desfavorable. |
+| t-SNE | `t-SNE - Trustworthiness: X` | Indica si los vecinos cercanos de los datos originales continúan cerca en el plano proyectado. Va de $0$ a $1$; valores cercanos a $1$ son mejores. |
+| UMAP | `UMAP - Trustworthiness: X` | Mide la conservación de vecinos al reducir los datos. Va de $0$ a $1$; valores cercanos a $1$ son mejores. |
+
+Las funciones también devuelven el modelo o resultado. En PCA y clustering se retorna un diccionario con el modelo y la métrica; en t-SNE y UMAP, el `DataFrame` del embedding conserva el modelo y `trustworthiness` en `resultado.attrs`.
+
 ## Estructura
 
 ```text

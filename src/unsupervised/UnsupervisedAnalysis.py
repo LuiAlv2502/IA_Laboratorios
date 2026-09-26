@@ -2,10 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from IPython.display import display
-from scipy.cluster.hierarchy import dendrogram, linkage as scipy_linkage
+from scipy.cluster.hierarchy import cophenet, dendrogram, linkage as scipy_linkage
+from scipy.spatial.distance import pdist
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
+from sklearn.manifold import TSNE, trustworthiness
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
@@ -49,10 +50,16 @@ class UnsupervisedAnalysis:
         nombres = [f"PC{i + 1}" for i in range(componentes.shape[1])]
         cargas = modelo.components_.T * np.sqrt(modelo.explained_variance_)
 
+        varianza_acumulada = np.cumsum(modelo.explained_variance_ratio_)
+        metrica = varianza_acumulada[-1]
+        print(f"PCA - Varianza explicada acumulada: {metrica:.2%}")
+
         return {
+            "modelo": modelo,
             "componentes": pd.DataFrame(componentes, columns=nombres),
             "varianza_explicada": modelo.explained_variance_ratio_,
-            "varianza_acumulada": np.cumsum(modelo.explained_variance_ratio_),
+            "varianza_acumulada": varianza_acumulada,
+            "metrica": metrica,
             "cargas": pd.DataFrame(
                 cargas,
                 index=self.preparar_datos_numericos(columnas)[1],
@@ -139,9 +146,17 @@ class UnsupervisedAnalysis:
         etiquetas = modelo.fit_predict(matriz)
         resultado = self.dataframe.copy()
         resultado["cluster"] = etiquetas
+        enlaces = scipy_linkage(matriz, method=linkage)
+        correlacion_cofenetica, _ = cophenet(enlaces, pdist(matriz))
+        print(
+            "HAC - Correlación cofenética: "
+            f"{correlacion_cofenetica:.4f}"
+        )
 
         return {
+            "modelo": modelo,
             "resultado": resultado,
+            "correlacion_cofenetica": correlacion_cofenetica,
             "silhouette": silhouette_score(matriz, etiquetas),
         }
 
@@ -169,11 +184,14 @@ class UnsupervisedAnalysis:
         etiquetas = modelo.fit_predict(matriz)
         resultado = self.dataframe.copy()
         resultado["cluster"] = etiquetas
+        metrica = silhouette_score(matriz, etiquetas)
+        print(f"K-Means - Silhouette score: {metrica:.4f}")
 
         return {
+            "modelo": modelo,
             "resultado": resultado,
             "inercia": modelo.inertia_,
-            "silhouette": silhouette_score(matriz, etiquetas),
+            "silhouette": metrica,
         }
 
     def kmeans_codo(self, k_max=10, columnas=None):
@@ -238,7 +256,12 @@ class UnsupervisedAnalysis:
         )
         embedding = modelo.fit_transform(matriz)
         nombres = [f"Dim{i + 1}" for i in range(embedding.shape[1])]
-        return pd.DataFrame(embedding, columns=nombres)
+        metrica = trustworthiness(matriz, embedding, n_neighbors=5)
+        print(f"t-SNE - Trustworthiness: {metrica:.4f}")
+        resultado = pd.DataFrame(embedding, columns=nombres)
+        resultado.attrs["modelo"] = modelo
+        resultado.attrs["trustworthiness"] = metrica
+        return resultado
 
     def umap_embedding(self, n_components=2, n_neighbors=15, min_dist=0.1, columnas=None):
         if umap is None:
@@ -253,7 +276,12 @@ class UnsupervisedAnalysis:
         )
         embedding = modelo.fit_transform(matriz)
         nombres = [f"Dim{i + 1}" for i in range(embedding.shape[1])]
-        return pd.DataFrame(embedding, columns=nombres)
+        metrica = trustworthiness(matriz, embedding, n_neighbors=5)
+        print(f"UMAP - Trustworthiness: {metrica:.4f}")
+        resultado = pd.DataFrame(embedding, columns=nombres)
+        resultado.attrs["modelo"] = modelo
+        resultado.attrs["trustworthiness"] = metrica
+        return resultado
 
     def embedding_grafico(
         self,
