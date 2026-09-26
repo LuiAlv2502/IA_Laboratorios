@@ -115,6 +115,11 @@ class DataView:
             description="Enlace HAC:"
         )
 
+        self.visualizacion_3d = widgets.Checkbox(
+            value=False,
+            description="Visualización 3D"
+        )
+
         self.boton_ejecutar = widgets.Button(
             description="Ejecutar",
             button_style="primary"
@@ -133,6 +138,7 @@ class DataView:
         self.campo_parametro_entero = widgets.Box([self.parametro_entero])
         self.campo_parametro_decimal = widgets.Box([self.parametro_decimal])
         self.campo_metodo_enlace = widgets.Box([self.metodo_enlace])
+        self.campo_visualizacion_3d = widgets.Box([self.visualizacion_3d])
         self.controles_operacion = widgets.HBox([
             self.campo_columna,
             self.campo_operador,
@@ -143,6 +149,7 @@ class DataView:
             self.campo_parametro_entero,
             self.campo_parametro_decimal,
             self.campo_metodo_enlace,
+            self.campo_visualizacion_3d,
         ])
 
         self.metodo.observe(self._actualizar_controles, names="value")
@@ -193,6 +200,10 @@ class DataView:
         )
         self._mostrar_control(
             self.campo_metodo_enlace, metodo in {"HAC", "HAC Dendrograma"}
+        )
+        self._mostrar_control(
+            self.campo_visualizacion_3d,
+            metodo in {"PCA", "PCA (variación)", "HAC", "K-Means", "t-SNE", "UMAP"},
         )
 
         descripciones = {

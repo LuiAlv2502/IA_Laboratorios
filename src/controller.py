@@ -47,12 +47,14 @@ class DataController:
         self.view.mostrar_resultado(resultado)
 
     def _ejecutar_pca(self, variacion=False):
+        modo_3d = self.view.visualizacion_3d.value
         resultado = self.model.pca(
-            n_components=self.view.parametro_entero.value,
+            n_components=max(3, self.view.parametro_entero.value) if modo_3d else self.view.parametro_entero.value,
             whiten=variacion,
             svd_solver="randomized" if variacion else "auto",
         )
-        self.model.pca_grafico(resultado)
+        self.model.pca_grafico(resultado, modo_3d)
+        self.model.pca_circulo_correlaciones(resultado)
         return resultado
 
     def _ejecutar_clustering(self, algoritmo):
@@ -60,12 +62,33 @@ class DataController:
         self.model.cluster_grafico(
             resultado["resultado"]["cluster"],
             "Visualización de clústeres",
+            self.view.visualizacion_3d.value,
         )
         return resultado
 
     def _ejecutar_embedding(self, algoritmo, titulo):
         embedding = algoritmo()
-        self.model.embedding_grafico(embedding, titulo)
+        self.model.embedding_grafico(
+            embedding, titulo, modo_3d=self.view.visualizacion_3d.value
+        )
+        return embedding
+
+    def _ejecutar_umap(self):
+        cantidad_clusters = max(2, self.view.parametro_entero.value)
+        modo_3d = self.view.visualizacion_3d.value
+        embedding = self.model.umap_embedding(
+            n_components=3 if modo_3d else 2,
+            n_neighbors=cantidad_clusters,
+            min_dist=self.view.parametro_decimal.value,
+        )
+        resultado_kmeans = self.model.kmeans(n_clusters=cantidad_clusters)
+        self.model.embedding_grafico(
+            embedding,
+            "UMAP coloreado por clústeres K-Means",
+            resultado_kmeans["resultado"]["cluster"],
+            "Clúster",
+            modo_3d,
+        )
         return embedding
 
     def _acciones(self):
@@ -147,15 +170,10 @@ class DataController:
             ),
             "t-SNE": lambda: self._ejecutar_embedding(
                 lambda: self.model.tsne(
+                    n_components=3 if self.view.visualizacion_3d.value else 2,
                     perplexity=self.view.parametro_decimal.value or 30.0
                 ),
                 "t-SNE",
             ),
-            "UMAP": lambda: self._ejecutar_embedding(
-                lambda: self.model.umap_embedding(
-                    n_neighbors=max(2, self.view.parametro_entero.value),
-                    min_dist=self.view.parametro_decimal.value,
-                ),
-                "UMAP",
-            ),
+            "UMAP": self._ejecutar_umap,
         }

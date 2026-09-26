@@ -47,24 +47,83 @@ class UnsupervisedAnalysis:
         )
         componentes = modelo.fit_transform(matriz)
         nombres = [f"PC{i + 1}" for i in range(componentes.shape[1])]
+        cargas = modelo.components_.T * np.sqrt(modelo.explained_variance_)
 
         return {
             "componentes": pd.DataFrame(componentes, columns=nombres),
             "varianza_explicada": modelo.explained_variance_ratio_,
             "varianza_acumulada": np.cumsum(modelo.explained_variance_ratio_),
+            "cargas": pd.DataFrame(
+                cargas,
+                index=self.preparar_datos_numericos(columnas)[1],
+                columns=nombres,
+            ),
         }
 
-    def pca_grafico(self, resultado_pca):
+    def pca_grafico(self, resultado_pca, modo_3d=False):
         componentes = resultado_pca["componentes"]
 
         if componentes.shape[1] < 2:
             raise ValueError("Se requieren al menos dos componentes.")
 
-        figura, eje = plt.subplots(figsize=(8, 6))
-        eje.scatter(componentes["PC1"], componentes["PC2"])
+        if modo_3d:
+            if componentes.shape[1] < 3:
+                raise ValueError("La visualización 3D requiere tres componentes.")
+            figura = plt.figure(figsize=(9, 7))
+            eje = figura.add_subplot(111, projection="3d")
+            eje.scatter(
+                componentes["PC1"],
+                componentes["PC2"],
+                componentes["PC3"],
+                color="#2563eb",
+                alpha=0.75,
+            )
+            eje.set_zlabel(
+                f"PC3 ({resultado_pca['varianza_explicada'][2]:.1%})"
+            )
+        else:
+            figura, eje = plt.subplots(figsize=(8, 6))
+            eje.scatter(
+                componentes["PC1"],
+                componentes["PC2"],
+                color="#2563eb",
+                alpha=0.75,
+            )
         eje.set_xlabel(f"PC1 ({resultado_pca['varianza_explicada'][0]:.1%})")
         eje.set_ylabel(f"PC2 ({resultado_pca['varianza_explicada'][1]:.1%})")
-        eje.set_title("PCA - Componentes principales")
+        eje.set_title("PCA - Componentes principales" + (" (3D)" if modo_3d else ""))
+        plt.tight_layout()
+        display(figura)
+        plt.close(figura)
+        return eje
+
+    def pca_circulo_correlaciones(self, resultado_pca):
+        """Muestra las relaciones de las variables con PC1 y PC2."""
+        cargas = resultado_pca["cargas"]
+
+        if cargas.shape[1] < 2:
+            raise ValueError("Se requieren al menos dos componentes.")
+
+        figura, eje = plt.subplots(figsize=(8, 8))
+        circulo = plt.Circle((0, 0), 1, fill=False, color="#64748b")
+        eje.add_artist(circulo)
+        eje.axhline(0, color="#94a3b8", linewidth=0.8)
+        eje.axvline(0, color="#94a3b8", linewidth=0.8)
+
+        for variable, carga in cargas.iterrows():
+            eje.annotate(
+                "",
+                xy=(carga["PC1"], carga["PC2"]),
+                xytext=(0, 0),
+                arrowprops={"arrowstyle": "->", "color": "#2563eb"},
+            )
+            eje.text(carga["PC1"], carga["PC2"], variable, fontsize=9)
+
+        eje.set(xlim=(-1.1, 1.1), ylim=(-1.1, 1.1), aspect="equal")
+        eje.set_xlabel("PC1")
+        eje.set_ylabel("PC2")
+        eje.set_title("PCA - Círculo de correlaciones")
+        eje.grid(alpha=0.2)
         plt.tight_layout()
         display(figura)
         plt.close(figura)
@@ -139,22 +198,29 @@ class UnsupervisedAnalysis:
         plt.close(figura)
         return pd.Series(inercias, index=range(1, k_max + 1), name="inercia")
 
-    def cluster_grafico(self, etiquetas, titulo="Clústeres"):
-        """Proyecta las observaciones a 2D y las colorea por clúster."""
+    def cluster_grafico(self, etiquetas, titulo="Clústeres", modo_3d=False):
+        """Proyecta observaciones y las colorea por clúster."""
         matriz, _ = self.preparar_datos_numericos()
-        proyeccion = PCA(n_components=2, random_state=42).fit_transform(matriz)
+        dimensiones = 3 if modo_3d else 2
+        proyeccion = PCA(n_components=dimensiones, random_state=42).fit_transform(matriz)
 
-        figura, eje = plt.subplots(figsize=(8, 6))
-        puntos = eje.scatter(
-            proyeccion[:, 0],
-            proyeccion[:, 1],
-            c=etiquetas,
-            cmap="tab10",
-            alpha=0.8,
-        )
+        if modo_3d:
+            figura = plt.figure(figsize=(9, 7))
+            eje = figura.add_subplot(111, projection="3d")
+            puntos = eje.scatter(
+                proyeccion[:, 0], proyeccion[:, 1], proyeccion[:, 2],
+                c=etiquetas, cmap="tab10", alpha=0.8,
+            )
+            eje.set_zlabel("Componente principal 3")
+        else:
+            figura, eje = plt.subplots(figsize=(8, 6))
+            puntos = eje.scatter(
+                proyeccion[:, 0], proyeccion[:, 1],
+                c=etiquetas, cmap="tab10", alpha=0.8,
+            )
         eje.set_xlabel("Componente principal 1")
         eje.set_ylabel("Componente principal 2")
-        eje.set_title(titulo)
+        eje.set_title(titulo + (" (3D)" if modo_3d else ""))
         figura.colorbar(puntos, ax=eje, label="Clúster")
         plt.tight_layout()
         display(figura)
@@ -189,16 +255,66 @@ class UnsupervisedAnalysis:
         nombres = [f"Dim{i + 1}" for i in range(embedding.shape[1])]
         return pd.DataFrame(embedding, columns=nombres)
 
-    def embedding_grafico(self, embedding, titulo="Embedding"):
-        if embedding.shape[1] < 2:
-            raise ValueError("Se requieren al menos dos dimensiones.")
+    def embedding_grafico(
+        self,
+        embedding,
+        titulo="Embedding",
+        etiquetas=None,
+        nombre_etiqueta="Grupo",
+        modo_3d=False,
+    ):
+        dimensiones_requeridas = 3 if modo_3d else 2
+        if embedding.shape[1] < dimensiones_requeridas:
+            raise ValueError(
+                f"La visualización requiere {dimensiones_requeridas} dimensiones."
+            )
 
         columnas = list(embedding.columns)
-        figura, eje = plt.subplots(figsize=(8, 6))
-        eje.scatter(embedding[columnas[0]], embedding[columnas[1]])
+        if modo_3d:
+            figura = plt.figure(figsize=(9, 7))
+            eje = figura.add_subplot(111, projection="3d")
+        else:
+            figura, eje = plt.subplots(figsize=(9, 7))
+
+        if etiquetas is None:
+            coordenadas = [embedding[columnas[0]], embedding[columnas[1]]]
+            if modo_3d:
+                coordenadas.append(embedding[columnas[2]])
+            eje.scatter(
+                *coordenadas,
+                color="#2563eb",
+                alpha=0.75,
+                edgecolors="white",
+                linewidths=0.3,
+            )
+        else:
+            etiquetas = pd.Series(etiquetas, index=embedding.index)
+            paleta = plt.get_cmap("tab10")
+
+            for indice, etiqueta in enumerate(sorted(etiquetas.unique())):
+                mascara = etiquetas == etiqueta
+                coordenadas = [
+                    embedding.loc[mascara, columnas[0]],
+                    embedding.loc[mascara, columnas[1]],
+                ]
+                if modo_3d:
+                    coordenadas.append(embedding.loc[mascara, columnas[2]])
+                eje.scatter(
+                    *coordenadas,
+                    color=paleta(indice % 10),
+                    label=f"{nombre_etiqueta} {etiqueta}",
+                    alpha=0.8,
+                    edgecolors="white",
+                    linewidths=0.3,
+                )
+            eje.legend(title=nombre_etiqueta, frameon=True)
+
         eje.set_xlabel(columnas[0])
         eje.set_ylabel(columnas[1])
-        eje.set_title(titulo)
+        if modo_3d:
+            eje.set_zlabel(columnas[2])
+        eje.set_title(titulo + (" (3D)" if modo_3d else ""))
+        eje.grid(alpha=0.2)
         plt.tight_layout()
         display(figura)
         plt.close(figura)

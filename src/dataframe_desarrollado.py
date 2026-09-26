@@ -741,8 +741,15 @@ class DataFrame:
             n_components, whiten, svd_solver, columnas
         )
 
-    def pca_grafico(self, resultado_pca):
-        return self._analisis_no_supervisado().pca_grafico(resultado_pca)
+    def pca_grafico(self, resultado_pca, modo_3d=False):
+        return self._analisis_no_supervisado().pca_grafico(
+            resultado_pca, modo_3d
+        )
+
+    def pca_circulo_correlaciones(self, resultado_pca):
+        return self._analisis_no_supervisado().pca_circulo_correlaciones(
+            resultado_pca
+        )
 
     def hac(self, n_clusters=3, linkage="ward", metric="euclidean", columnas=None):
         return self._analisis_no_supervisado().hac(
@@ -760,9 +767,9 @@ class DataFrame:
     def kmeans_codo(self, k_max=10, columnas=None):
         return self._analisis_no_supervisado().kmeans_codo(k_max, columnas)
 
-    def cluster_grafico(self, etiquetas, titulo="Clústeres"):
+    def cluster_grafico(self, etiquetas, titulo="Clústeres", modo_3d=False):
         return self._analisis_no_supervisado().cluster_grafico(
-            etiquetas, titulo
+            etiquetas, titulo, modo_3d
         )
 
     def tsne(self, n_components=2, perplexity=30.0, learning_rate="auto", columnas=None):
@@ -775,8 +782,17 @@ class DataFrame:
             n_components, n_neighbors, min_dist, columnas
         )
 
-    def embedding_grafico(self, embedding, titulo="Embedding"):
-        return self._analisis_no_supervisado().embedding_grafico(embedding, titulo)
+    def embedding_grafico(
+        self,
+        embedding,
+        titulo="Embedding",
+        etiquetas=None,
+        nombre_etiqueta="Grupo",
+        modo_3d=False,
+    ):
+        return self._analisis_no_supervisado().embedding_grafico(
+            embedding, titulo, etiquetas, nombre_etiqueta, modo_3d
+        )
 
 
 if __name__ == "__main__":

@@ -154,8 +154,11 @@ class DataModel:
     def pca(self, n_components=2, whiten=False, svd_solver="auto"):
         return self.__dataframe.pca(n_components, whiten, svd_solver)
 
-    def pca_grafico(self, resultado_pca):
-        return self.__dataframe.pca_grafico(resultado_pca)
+    def pca_grafico(self, resultado_pca, modo_3d=False):
+        return self.__dataframe.pca_grafico(resultado_pca, modo_3d)
+
+    def pca_circulo_correlaciones(self, resultado_pca):
+        return self.__dataframe.pca_circulo_correlaciones(resultado_pca)
 
     def hac(self, n_clusters=3, linkage="ward", metric="euclidean"):
         return self.__dataframe.hac(n_clusters, linkage, metric)
@@ -169,8 +172,8 @@ class DataModel:
     def kmeans_codo(self, k_max=10):
         return self.__dataframe.kmeans_codo(k_max)
 
-    def cluster_grafico(self, etiquetas, titulo="Clústeres"):
-        return self.__dataframe.cluster_grafico(etiquetas, titulo)
+    def cluster_grafico(self, etiquetas, titulo="Clústeres", modo_3d=False):
+        return self.__dataframe.cluster_grafico(etiquetas, titulo, modo_3d)
 
     def tsne(self, n_components=2, perplexity=30.0, learning_rate="auto"):
         return self.__dataframe.tsne(n_components, perplexity, learning_rate)
@@ -180,5 +183,14 @@ class DataModel:
             n_components, n_neighbors, min_dist
         )
 
-    def embedding_grafico(self, embedding, titulo="Embedding"):
-        return self.__dataframe.embedding_grafico(embedding, titulo)
+    def embedding_grafico(
+        self,
+        embedding,
+        titulo="Embedding",
+        etiquetas=None,
+        nombre_etiqueta="Grupo",
+        modo_3d=False,
+    ):
+        return self.__dataframe.embedding_grafico(
+            embedding, titulo, etiquetas, nombre_etiqueta, modo_3d
+        )
