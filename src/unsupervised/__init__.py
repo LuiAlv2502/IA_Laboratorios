@@ -1,3 +1,4 @@
-from .UnsupervisedAnalysis import UnsupervisedAnalysis
+from .clustering import ClusteringAnalysis
+from .pca import PCAAnalysis
 
-__all__ = ["UnsupervisedAnalysis"]
+__all__ = ["ClusteringAnalysis", "PCAAnalysis"]

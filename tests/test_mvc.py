@@ -9,6 +9,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from dataframe_desarrollado import DataFrame
 from model import DataModel
+from unsupervised._base import UnsupervisedBase
+from unsupervised.clustering import ClusteringAnalysis
+from unsupervised.pca import PCAAnalysis
 
 
 DATASET = ROOT / "data" / "drug200.csv"
@@ -52,6 +55,15 @@ def test_pca_devuelve_dos_componentes(model):
     assert resultado["componentes"].shape == (200, 2)
     assert len(resultado["varianza_explicada"]) == 2
     assert resultado["varianza_acumulada"][-1] <= 1
+
+
+def test_pca_y_clustering_separados(model):
+    assert issubclass(PCAAnalysis, UnsupervisedBase)
+    assert issubclass(ClusteringAnalysis, UnsupervisedBase)
+    assert isinstance(model.dataframe, PCAAnalysis)
+    assert isinstance(model.dataframe, ClusteringAnalysis)
+    assert PCAAnalysis(model.mostrar()).pca()["componentes"].shape == (200, 2)
+    assert ClusteringAnalysis(model.mostrar()).kmeans()["resultado"]["cluster"].nunique() == 3
 
 
 @pytest.mark.parametrize("algoritmo", ["hac", "kmeans"])

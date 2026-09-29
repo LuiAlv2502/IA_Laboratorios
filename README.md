@@ -110,8 +110,10 @@ Las funciones también devuelven el modelo o resultado. En PCA y clustering se r
 ```text
 data/            Archivos CSV de entrada
 src/             Implementación MVC y clase base de EDA
-src/unsupervised/ Subclase con PCA, HAC, K-Means, t-SNE y UMAP
+src/unsupervised/ Base compartida; PCA (incluye t-SNE y UMAP) y clustering en clases separadas
 src/supervised/   Espacio para métodos supervisados futuros
 notebooks/        Punto de entrada en Jupyter
 ```
 
+
+clustering, clasificacion
