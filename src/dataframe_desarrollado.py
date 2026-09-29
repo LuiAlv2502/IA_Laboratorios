@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 
 class DataFrame:
     """
-    Clase ejemplo para un curso introductorio de Ciencia de Datos.
     Clase base para EDA, limpieza y preprocesamiento de un DataFrame.
     """
 
