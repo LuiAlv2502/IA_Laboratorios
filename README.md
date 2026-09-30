@@ -1,6 +1,6 @@
 # Laboratorio de análisis de datos
 
-Aplicación MVC en Jupyter para cargar cualquier archivo CSV, realizar análisis exploratorio de datos (EDA), preprocesamiento y métodos de aprendizaje no supervisado.
+Paquete en Python para cargar y explorar datos, realizar preprocesamiento y ejecutar análisis de aprendizaje no supervisado y clasificación supervisada. La interfaz MVC de Jupyter disponible actualmente está enfocada en los procedimientos no supervisados.
 
 ## Uso rápido
 
@@ -91,9 +91,60 @@ Antes de estos métodos, la aplicación codifica variables categóricas mediante
 
 Para HAC y K-Means se reporta el **silhouette score**, donde valores cercanos a $1$ sugieren grupos más separados. K-Means además reporta la **inercia**, suma de distancias cuadradas de cada observación a su centroide.
 
-### Métricas impresas en consola
+## Aprendizaje supervisado: clasificación
 
-Cada vez que se ejecuta una técnica, el programa imprime su métrica principal. Esto permite revisar el resultado sin leer el código.
+En el aprendizaje supervisado, cada observación incluye atributos de entrada $X$ y una respuesta conocida $y$. El algoritmo aprende una función que relaciona ambos y luego la utiliza para predecir respuestas en observaciones nuevas. En clasificación, $y$ representa una categoría, como una clase binaria o una de varias clases.
+
+Para estimar la capacidad de generalización, los datos se dividen en entrenamiento y prueba. El modelo aprende con el conjunto de entrenamiento y se evalúa con el conjunto de prueba, que se reserva para medir su desempeño. En clasificación, la división estratificada procura conservar la proporción de las clases en ambos conjuntos.
+
+### Algoritmos
+
+**K vecinos más cercanos (KNN).** Clasifica una observación según las clases de sus $k$ vecinos más cercanos. La distancia, comúnmente euclidiana, determina qué observaciones se consideran cercanas; por eso, la escala de las variables numéricas puede cambiar el resultado. Un $k$ pequeño puede ser sensible al ruido, mientras que uno grande puede suavizar demasiado las diferencias entre clases.
+
+**Árbol de decisión (DT).** Divide repetidamente los datos mediante reglas sobre los atributos. En cada división busca separar las clases reduciendo una medida de impureza, como Gini o entropía. Es fácil de interpretar, pero un árbol demasiado profundo puede ajustarse demasiado a los datos de entrenamiento.
+
+**Random Forest (RF).** Entrena varios árboles sobre muestras aleatorias del conjunto de entrenamiento y subconjuntos de atributos. Para clasificar, combina sus votos. Esta combinación suele reducir la variabilidad de un árbol individual, aunque hace menos directa la interpretación del resultado.
+
+**AdaBoost.** Entrena una secuencia de clasificadores débiles. En cada iteración aumenta la atención sobre las observaciones que los clasificadores anteriores confundieron, y al final combina sus predicciones con pesos. Puede ser sensible a observaciones atípicas o etiquetas incorrectas.
+
+**XGBoost.** Implementa árboles de *gradient boosting*: agrega árboles secuencialmente para corregir errores de la combinación actual. Optimiza una función objetivo que incorpora tanto la pérdida de predicción como regularización, con el fin de controlar la complejidad del modelo. Es distinto de `GradientBoostingClassifier` de scikit-learn, que también está disponible en este paquete como método adicional.
+
+### Flujo de clasificación implementado
+
+La clase `ClasificacionModelos` hereda de `SupervisadoBase`. Se construye con un DataFrame y el nombre de la columna objetivo. El parámetro `test_size` controla la proporción reservada para prueba; por defecto es $0.25$, y la división es reproducible mediante `random_state`.
+
+La preparación de predictores forma parte de un `Pipeline` para aprender las transformaciones únicamente con los datos de entrenamiento. Las columnas numéricas reciben imputación por mediana y, si se solicita, estandarización. Las categóricas reciben imputación por moda y codificación *one-hot*. Las columnas predictoras pueden limitarse con `feature_columns`; los registros sin respuesta objetivo se rechazan.
+
+Los métodos disponibles son `knn`, `decision_tree`, `random_forest`, `adaboost` y `xgboost`. `gradient_boosting` es una alternativa adicional. Cada método permite configurar algunos hiperparámetros y devuelve el pipeline entrenado junto con sus métricas. XGBoost codifica internamente las etiquetas de texto y las devuelve en su forma original al predecir.
+
+Las métricas de clasificación incluyen *accuracy*, precisión, *recall* y F1 macro, matriz de confusión y reporte por clase. El promedio macro otorga el mismo peso a cada clase, lo que resulta útil cuando las clases tienen tamaños distintos.
+
+### Experimentación de clasificación
+
+`comparar_basico()` ejecuta una configuración predeterminada de cada algoritmo principal. También se pueden cambiar los hiperparámetros al llamar cada método; por ejemplo, `knn(n_neighbors=3)` o `random_forest(n_estimators=100, max_depth=8)`. `adaboost_grid()` prueba combinaciones de parámetros mediante validación cruzada sobre los datos de entrenamiento y evalúa la mejor configuración en el conjunto de prueba.
+
+Para comparar configuraciones, conviene mantener la misma división de datos y observar las métricas en conjunto, especialmente F1 macro y la matriz de confusión. La configuración con mejor resultado debe seleccionarse usando validación cruzada y evaluarse al final con el conjunto de prueba reservado. La clase ofrece búsqueda automatizada de hiperparámetros para AdaBoost; para los demás algoritmos, las variantes se ejecutan pasando sus parámetros a los métodos y sus resultados se comparan. La selección final y el análisis deben considerar también los errores por clase, no solo una métrica global.
+
+La API puede utilizarse desde Python:
+
+```python
+from supervised import ClasificacionModelos
+
+clasificador = ClasificacionModelos(
+	df,
+	target="columna_objetivo",
+	test_size=0.25,
+	random_state=42,
+)
+resultado = clasificador.knn(n_neighbors=5)
+print(resultado["metricas"])
+```
+
+La carpeta de regresión está reservada para desarrollos posteriores; por ahora no contiene algoritmos implementados.
+
+### Métricas de los métodos no supervisados
+
+Los métodos no supervisados reportan métricas para ayudar a interpretar sus resultados.
 
 | Técnica | Mensaje en consola | Interpretación simple |
 | --- | --- | --- |
@@ -108,12 +159,30 @@ Las funciones también devuelven el modelo o resultado. En PCA y clustering se r
 ## Estructura
 
 ```text
-data/            Archivos CSV de entrada
-src/             Implementación MVC y clase base de EDA
-src/unsupervised/ Base compartida; PCA (incluye t-SNE y UMAP) y clustering en clases separadas
-src/supervised/   Espacio para métodos supervisados futuros
-notebooks/        Punto de entrada en Jupyter
+data/
+	Archivos CSV de entrada
+notebooks/
+	Experimentacion_No_Supervisada.ipynb
+	Pruebas_MVC.ipynb
+	Version3_MVC.ipynb
+src/
+	controller.py
+	dataframe_desarrollado.py
+	model.py
+	view.py
+	supervised/
+		__init__.py
+		_base.py
+		Classification/
+			__init__.py
+			Clasificacion.py
+		Regression/             Reservada para desarrollo futuro
+	unsupervised/
+		__init__.py
+		_base.py
+		clustering.py
+		pca.py
+tests/
+	test_mvc.py
+requirements.txt
 ```
-
-
-clustering, clasificacion

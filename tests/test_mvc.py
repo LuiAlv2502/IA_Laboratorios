@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from dataframe_desarrollado import DataFrame
 from model import DataModel
+from supervised import ClasificacionModelos
 from unsupervised._base import UnsupervisedBase
 from unsupervised.clustering import ClusteringAnalysis
 from unsupervised.pca import PCAAnalysis
@@ -99,3 +100,96 @@ def test_pca_rechaza_dataframe_vacio():
 
     with pytest.raises(ValueError, match="No hay datos"):
         datos.pca()
+
+
+def test_clasificacion_knn_preprocesa_categorias_y_evalua_multiclase(model):
+    clasificador = ClasificacionModelos(model.mostrar(), target="Drug")
+    split = clasificador.prepare_data()
+
+    assert len(split.X_train) + len(split.X_test) == 200
+    assert "Drug" not in split.X_train.columns
+    assert set(split.y_train) == set(split.y_test)
+
+    resultado = clasificador.knn(n_neighbors=3)
+
+    assert 0 <= resultado["metricas"]["accuracy"] <= 1
+    assert len(resultado["metricas"]["confusion_matrix"]) == 5
+    assert resultado["model"].predict(split.X_test).shape == split.y_test.shape
+
+
+def test_clasificacion_xgboost_admite_etiquetas_categoricas(model):
+    clasificador = ClasificacionModelos(model.mostrar(), target="Drug")
+
+    resultado = clasificador.xgboost(n_estimators=10)
+
+    assert 0 <= resultado["metricas"]["accuracy"] <= 1
+
+
+@pytest.mark.parametrize(
+    ("metodo", "parametros", "atributos_esperados"),
+    [
+        ("knn", {"n_neighbors": 3}, {"n_neighbors": 3}),
+        (
+            "decision_tree",
+            {"min_samples_split": 4, "max_depth": 5},
+            {"min_samples_split": 4, "max_depth": 5},
+        ),
+        (
+            "random_forest",
+            {"n_estimators": 25, "max_depth": 5},
+            {"n_estimators": 25, "max_depth": 5},
+        ),
+        (
+            "gradient_boosting",
+            {"n_estimators": 25, "max_depth": 1},
+            {"n_estimators": 25, "max_depth": 1},
+        ),
+        ("adaboost", {"n_estimators": 25}, {"n_estimators": 25}),
+        (
+            "xgboost",
+            {"n_estimators": 10, "max_depth": 2},
+            {"n_estimators": 10, "max_depth": 2},
+        ),
+    ],
+)
+def test_clasificacion_aplica_variaciones_de_parametros(
+    model, metodo, parametros, atributos_esperados
+):
+    clasificador = ClasificacionModelos(model.mostrar(), target="Drug")
+
+    resultado = getattr(clasificador, metodo)(**parametros)
+    estimador = resultado["model"].named_steps["modelo"]
+    if metodo == "xgboost":
+        estimador = estimador.estimator_
+
+    for atributo, esperado in atributos_esperados.items():
+        assert getattr(estimador, atributo) == esperado
+    assert 0 <= resultado["metricas"]["accuracy"] <= 1
+
+
+def test_clasificacion_grid_adaboost_acepta_parametros_sin_prefijo(model):
+    clasificador = ClasificacionModelos(model.mostrar(), target="Drug")
+
+    resultado = clasificador.adaboost_grid(
+        {"n_estimators": [10, 20]},
+        cv=2,
+    )
+
+    assert resultado["best_params"]["n_estimators"] in {10, 20}
+    assert 0 <= resultado["metricas"]["accuracy"] <= 1
+
+
+def test_comparar_basico_incluye_modelos_del_trabajo(model):
+    clasificador = ClasificacionModelos(model.mostrar(), target="Drug")
+
+    resultados = clasificador.comparar_basico()
+
+    assert set(resultados) == {
+        "knn",
+        "decision_tree",
+        "random_forest",
+        "gradient_boosting",
+        "adaboost",
+        "xgboost",
+    }
+    assert all("metricas" in resultado for resultado in resultados.values())
